@@ -1,16 +1,9 @@
 from vqa.ansatz import *
 from vqa.hamiltonian import generate_hamiltonian
-from qiskit.opflow import I, X, Y, Z, CX, OperatorStateFn, StateFn, CircuitStateFn
-from qiskit.opflow.gradients import Gradient, NaturalGradient, QFI, Hessian
 import numpy as np
-import matplotlib.pyplot as plt
 from vqa.gradient import *
 from vqa.transform import *
-import time
-import qiskit.algorithms.optimizers
-from scipy.optimize import minimize
-import time
-from scipy.optimize import OptimizeResult
+from scipy.optimize import *
 
 dim = 3
 num_layer = 2
@@ -29,6 +22,8 @@ def objective_function(x):
     values_dict = x
     statevector = forward(qc, values_dict)
     return np.real(statevector@hamiltonian_matrix@statevector.conj())
+
+# sparse version can achieve speed-up when dimension of the system is large 
 def objective_function_sparse(x):
     #values_dict = dict(zip(params, x))
     values_dict = x
@@ -36,18 +31,21 @@ def objective_function_sparse(x):
     return np.real(statevector@hamiltonian_matrix_sparse@statevector.conj())
 
 def gradient_function(x):
-    #values_dict = dict(zip(params, x))
     values_dict = x
     eps = 1e-6
-    eta = 0.1
     current_value = objective_function(x)
     gradient = np.zeros(num_vars)
     for i in range(num_vars):
         x[i] += eps
         gradient[i] = np.real((objective_function(x)-current_value))/eps
         x[i] -= eps
-    gradient = np.linalg.inv(get_qfi(qc, values_dict) + eta*np.identity(num_vars))@gradient
+    return gradient
+
+def natural_gradient_function(x):
+    eta = 0.2
+    gradient = np.linalg.inv(get_qfi(qc, x) + eta*np.identity(num_vars))@gradient_function(x)
     return np.real(gradient)
+
 
 def gradient_function_sparse(x):
     #values_dict = dict(zip(params, x))
@@ -64,28 +62,38 @@ def gradient_function_sparse(x):
     gradient = np.real(gradient)
     return gradient
 
-def gradient_function_param_shift(x):
-    values_dict = dict(zip(params, x))
-    eta = 1e-1
-    gradient = np.zeros(num_vars)
-    for i in range(num_vars):
-        tmp = x[i]
-        x[i] += np.pi/2
-        gradient[i] = objective_function(x)
-        x[i] -= np.pi
-        gradient[i] = np.real(gradient[i] - objective_function(x))/2
-        x[i] = tmp
-
-    gradient = np.linalg.inv(get_qfi(qc, values_dict) + eta*np.identity(num_vars))@gradient
-    gradient = np.real(gradient)
-    return gradient
-
+def gradient_descent(x0, f, f_directtion, f_gradient, adaptative = False):
+    x_i = x0
+    all_x_i = list()
+    all_f_i = list()
+    for i in range(100):
+        all_x_i.append(x_i)
+        all_f_i.append(f(x_i))
+        dx_i = f_directtion(x_i)
+        gradient_i = f_gradient(x_i)
+        if(np.linalg.norm(gradient_i) < 1e-4):
+            print("optimization converges")
+            break
+        print(all_f_i[-1])
+        if adaptative:
+            # Compute a step size using a line_search to satisfy the Wolf
+            # conditions
+            step = line_search(f, f_gradient,
+                                x_i, -dx_i, gradient_i,
+                                c2=.05)
+            step = step[0]
+            if step is None:
+                step = 0
+        else:
+            step = 1
+        x_i += -step*dx_i
+        if np.abs(all_f_i[-1]) < 1e-16:
+            break
+    return all_x_i, all_f_i
 def call_back(x):
     print("current value: ", objective_function(x))
 
 x = np.random.rand(num_vars)
 
-res = minimize(fun = objective_function, x0 = x, method = 'Newton-CG', jac = gradient_function, callback = call_back)
-# res = adam(objective_function, x, gradient_function, callback = call_back)
-print(res)
-# -6.464101608525468
+res = gradient_descent(x, objective_function, natural_gradient_function, gradient_function, adaptative = True)
+print(len(res[0]))

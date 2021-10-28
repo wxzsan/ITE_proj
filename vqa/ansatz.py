@@ -10,7 +10,10 @@ from scipy.sparse import csgraph
 #Circuit imports
 from qiskit.circuit import QuantumCircuit, QuantumRegister, Parameter, ParameterVector, ParameterExpression
 
+#_qiskit suffix means that is is implemented by simulator in qiksit, _sparse suffix means that it is implemented by sparse matrix multiplication in numpy
 
+
+# use a list of numpy matrix to represent a quantum circuit
 class QuantumCircuitUnitary:
     def __init__(self, qcnt):
         self.qcnt = qcnt
@@ -46,6 +49,8 @@ class QuantumCircuitUnitary:
             self.gate_list.append([((I^i)^Z^(I^(j-i-1))^Z^(I^(self.qcnt-j-1))).to_matrix(), True])
         else:
             self.gate_list.append([((I^j)^Z^(I^(i-j-1))^Z^(I^(self.qcnt-i-1))).to_matrix(), True])
+
+# use a list of numpy sparse matrix to represent a quantum circuit
 class QuantumCircuitUnitarySparse:
     def __init__(self, qcnt):
         self.qcnt = qcnt

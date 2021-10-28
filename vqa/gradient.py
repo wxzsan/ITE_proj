@@ -11,6 +11,8 @@ from scipy.sparse import csgraph
 
 backend = Aer.get_backend('statevector_simulator')
 
+#_qiskit suffix means that is is implemented by simulator in qiksit, _sparse suffix means that it is implemented by sparse matrix multiplication in numpy
+
 def forward_qiskit(qc: QuantumCircuit, values_dict: dict) -> np.ndarray:
 
     qc_assigned = qc.assign_parameters(values_dict)
